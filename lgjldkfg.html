@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Mahalle Efsaneleri: Full Kadro</title>
+    <style>
+        :root { --grass: #2d5a27; --water: #1e3d59; --dirt: #4b3621; --gold: #ff9d00; }
+        body { background: #000; color: #fff; font-family: 'Courier New', monospace; margin: 0; overflow: hidden; }
+        #day-night-overlay { position: fixed; inset: 0; pointer-events: none; z-index: 8000; transition: background 5s; background: rgba(0,0,30,0); }
+        #ui-top { position: fixed; top: 0; width: 100%; background: rgba(0,0,0,0.95); padding: 10px; z-index: 9000; border-bottom: 2px solid white; display: flex; flex-direction: column; align-items: center; }
+        .stat-row { display: flex; gap: 15px; font-size: 14px; margin-bottom: 5px; }
+        #xp-container { width: 80%; height: 6px; background: #333; border-radius: 3px; overflow: hidden; }
+        #xp-fill { width: 0%; height: 100%; background: #00e5ff; }
+        #quest-panel { position: fixed; top: 120px; left: 10px; background: rgba(0,0,0,0.85); border: 1px solid var(--gold); padding: 10px; z-index: 5000; min-width: 180px; font-size: 13px; }
+        #game-container { width: 100vw; height: 100vh; position: relative; overflow: hidden; }
+        #world { position: absolute; width: 3000px; height: 3000px; background: var(--grass); z-index: 1; border: 20px solid #1a3317; }
+        .lake { position: absolute; background: var(--water); border-radius: 40%; border: 10px solid #2a52be; z-index: 2; }
+        .village-area { position: absolute; background: var(--dirt); border-radius: 20px; z-index: 2; }
+        .tree { position: absolute; font-size: 40px; transform: translate(-50%, -100%); z-index: 10; pointer-events: none; }
+        .fruit { position: absolute; font-size: 25px; cursor: pointer; z-index: 15; animation: bounce 1s infinite; }
+        #player { width: 30px; height: 30px; background: red; border-radius: 50%; position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 20px red; z-index: 1000; }
+        .npc { width: 45px; height: 45px; border-radius: 50%; border: 2px solid white; cursor: pointer; position: absolute; z-index: 20; transform: translate(-50%, -50%); }
+        .npc-label { position: absolute; top: -45px; width: 120px; text-align: center; left: -38px; font-weight: bold; font-size: 12px; text-shadow: 2px 2px #000; }
+        #shop-ui, #battle-screen { position: fixed; inset: 0; background: rgba(0,0,0,0.98); z-index: 10000; display: none; flex-direction: column; align-items: center; justify-content: center; }
+        .hp-bar { width: 350px; height: 20px; background: #333; border: 2px solid white; margin: 10px 0; }
+        #dodge-zone { width: 350px; height: 40px; border: 2px solid #fff; position: relative; background: #222; display: none; margin: 20px 0; }
+        #dodge-target { position: absolute; width: 50px; height: 100%; background: lime; left: 150px; }
+        #dodge-cursor { position: absolute; width: 6px; height: 100%; background: #fff; }
+        button { background: #000; color: var(--gold); border: 2px solid var(--gold); padding: 10px 20px; cursor: pointer; margin: 5px; font-weight: bold; }
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+    </style>
+</head>
+<body>
+    <div id="day-night-overlay"></div>
+    <div id="ui-top">
+        <div class="stat-row">
+            <span>❤ <b id="st-hp">100/100</b></span>
+            <span>💰 <b id="st-gold">100</b></span>
+            <span>⭐ LVL: <b id="st-lvl">1</b></span>
+            <span>🐟 BALIK: <b id="st-fish">0</b></span>
+            <span id="st-time" style="color:yellow">☀️ GÜNDÜZ</span>
+        </div>
+        <div id="xp-container"><div id="xp-fill"></div></div>
+    </div>
+    <div id="quest-panel"><b style="color:var(--gold)">GÖREVLER</b><div id="q-list">NPC'lere git!</div></div>
+    <div id="shop-ui">
+        <h2 style="color:orange">TOSTÇU YAKUP</h2>
+        <button onclick="buy('rod', 300)">Olta Satın Al (300G)</button>
+        <button onclick="sellFish()" style="color:lime">Balıkları Sat (Tanesi 10G)</button>
+        <button onclick="document.getElementById('shop-ui').style.display='none'">KAPAT</button>
+    </div>
+    <div id="battle-screen">
+        <h2 id="btl-name" style="color:red"></h2>
+        <div class="hp-bar"><div id="btl-enemy-hp" style="height:100%; background:red; width:100%"></div></div>
+        <div id="btl-sprite" style="white-space:pre; font-family:monospace; margin:20px; font-size:18px"></div>
+        <div id="battle-log" style="color:yellow; height:30px"></div>
+        <div id="dodge-zone"><div id="dodge-target"></div><div id="dodge-cursor"></div><button onclick="attemptDodge()" style="position:absolute; right:-90px; background:lime; color:black">KAÇ!</button></div>
+        <div id="btl-btns"><button onclick="combat('attack')">🗡 SALDIR</button><button onclick="combat('heal')">🍕 YEMEK YE</button></div>
+        <div class="hp-bar"><div id="btl-player-hp" style="height:100%; background:lime; width:100%"></div></div>
+    </div>
+    <div id="game-container"><div id="world"></div><div id="player"></div></div>
+
+<script>
+    const state = {
+        wX: 1500, wY: 1500, tX: 1500, tY: 1500,
+        hp: 100, maxHp: 100, gold: 100, lvl: 1, xp: 0, fish: 0,
+        hasRod: false, isNight: false, timeCount: 0,
+        isBattle: false, isTurn: true,
+        quests: { zeynep: 0, miray: 0, ipek: 0 },
+        questActive: { zeynep: false, miray: false, ipek: false }
+    };
+
+    const monsters = [
+        { name: "Lağım Faresi Yağız", hp: 60, atk: 10, lvl: 1, art: "(q\\---/p)\n ( o o )" },
+        { name: "Pasif Salih", hp: 150, atk: 15, lvl: 3, art: "(- _ -)\n--|   |--" },
+        { name: "At Kazım", hp: 400, atk: 35, lvl: 6, art: "/\\___/\\\n( o o )" }
+    ];
+
+    function init() {
+        const w = document.getElementById('world');
+        w.innerHTML += `<div class="village-area" style="width:800px; height:800px; left:1100px; top:1100px"></div>`;
+        w.innerHTML += `<div class="lake" style="width:500px; height:400px; left:400px; top:400px"></div>`;
+        spawnNPC('yakup', 'Tostçu Yakup', 1500, 1600, 'orange', 'TOSTÇU');
+        spawnNPC('zeynep', 'Zeynep', 1300, 1300, 'blue', 'SAVAŞÇI');
+        spawnNPC('miray', 'Miray', 1700, 1300, 'pink', 'BAHÇIVAN');
+        spawnNPC('ipek', 'İpek', 1500, 1200, 'purple', 'AŞÇI');
+        
+        for(let i=0; i<40; i++) {
+            let x = Math.random()*2800+100, y = Math.random()*2800+100;
+            if(!(x > 1100 && x < 1900 && y > 1100 && y < 1900)) {
+                let t = document.createElement('div'); t.className = 'tree';
+                t.style.left = x+'px'; t.style.top = y+'px'; t.innerText = '🌲'; w.appendChild(t);
+                if(Math.random() < 0.3) {
+                    let f = document.createElement('div'); f.className = 'fruit';
+                    f.style.left = (x+20)+'px'; f.style.top = (y+20)+'px'; f.innerText = Math.random() > 0.5 ? '🍎' : '🍓';
+                    f.onclick = (e) => { e.stopPropagation(); if(state.questActive.miray) { state.quests.miray++; f.remove(); updateQuestUI(); } };
+                    w.appendChild(f);
+                }
+            }
+        }
+        setInterval(updateTime, 1000); loop();
+    }
+
+    function updateTime() {
+        state.timeCount++;
+        if(state.timeCount % 30 === 0) {
+            state.isNight = !state.isNight;
+            document.getElementById('day-night-overlay').style.background = state.isNight ? "rgba(0,0,50,0.6)" : "rgba(0,0,0,0)";
+            document.getElementById('st-time').innerText = state.isNight ? "🌙 GECE" : "☀️ GÜNDÜZ";
+            updateUI();
+        }
+    }
+
+    function spawnNPC(id, name, x, y, color, job) {
+        let d = document.createElement('div'); d.className = 'npc';
+        d.style.left = x+'px'; d.style.top = y+'px'; d.style.backgroundColor = color;
+        d.innerHTML = `<div class="npc-label" style="color:${color}">${name}<br><small style="color:white">${job}</small></div>`;
+        d.onclick = (e) => { e.stopPropagation(); if(id==='yakup') document.getElementById('shop-ui').style.display='flex'; else { state.questActive[id]=true; updateQuestUI(); alert(name+": Görev verildi!"); } };
+        document.getElementById('world').appendChild(d);
+    }
+
+    function buy(type, price) {
+        if(state.gold < price) return alert("Yakup: Para yok!");
+        state.gold -= price; if(type === 'rod') state.hasRod = true; updateUI();
+    }
+
+    function sellFish() {
+        state.gold += state.fish * 10; state.fish = 0; updateUI();
+    }
+
+    function loop() {
+        if(!state.isBattle) {
+            let dx = state.tX - state.wX, dy = state.tY - state.wY;
+            if(Math.hypot(dx, dy) > 5) {
+                state.wX += dx * 0.05; state.wY += dy * 0.05;
+                if(state.hasRod && state.wX > 400 && state.wX < 900 && state.wY > 400 && state.wY < 800) { if(Math.random() < 0.01) { state.fish++; updateUI(); } }
+                let inSafe = (state.wX > 1100 && state.wX < 1900 && state.wY > 1100 && state.wY < 1900);
+                if(!inSafe && Math.random() < 0.012) startBattle();
+            }
+            document.getElementById('world').style.transform = `translate(${window.innerWidth/2 - state.wX}px, ${window.innerHeight/2 - state.wY}px)`;
+        }
+        requestAnimationFrame(loop);
+    }
+
+    let curE, dActive = false, dPos = 0, dDir = 5;
+
+    function startBattle() {
+        state.isBattle = true; state.isTurn = true;
+        let base = monsters[Math.floor(Math.random()*monsters.length)];
+        curE = { ...base, curHp: base.hp, maxHp: base.hp };
+        document.getElementById('battle-screen').style.display = 'flex';
+        document.getElementById('btl-btns').style.display = 'block';
+        document.getElementById('btl-name').innerText = curE.name + " (Lv."+curE.lvl+")";
+        document.getElementById('btl-sprite').innerText = curE.art;
+        updateBattleUI();
+    }
+
+    function combat(act) {
+        if(!state.isTurn) return; state.isTurn = false;
+        document.getElementById('btl-btns').style.display = 'none';
+        if(act === 'attack') {
+            let dmg = 25 + (state.lvl * 10); curE.curHp -= dmg;
+            if(curE.curHp <= 0) return victory();
+        } else {
+            state.hp = Math.min(state.maxHp, state.hp + 40); if(state.questActive.ipek) state.quests.ipek++;
+        }
+        updateBattleUI(); setTimeout(startDodge, 1000);
+    }
+
+    function startDodge() {
+        document.getElementById('dodge-zone').style.display = 'block';
+        dActive = true; dPos = 0; dDir = 6 + curE.lvl;
+        function m() { if(!dActive) return; dPos += dDir; if(dPos>344 || dPos<0) dDir*=-1; document.getElementById('dodge-cursor').style.left=dPos+'px'; requestAnimationFrame(m); }
+        m();
+    }
+
+    function attemptDodge() {
+        dActive = false; document.getElementById('dodge-zone').style.display = 'none';
+        let nightMult = state.isNight ? 2 : 1;
+        if(!(dPos >= 150 && dPos <= 200)) { state.hp -= (curE.atk + curE.lvl*3) * nightMult; }
+        updateBattleUI();
+        if(state.hp <= 0) return respawn();
+        setTimeout(() => { state.isTurn = true; document.getElementById('btl-btns').style.display = 'block'; }, 800);
+    }
+
+    function victory() {
+        let goldGain = (state.isNight ? 50 : 25) + (curE.lvl * 5);
+        state.gold += goldGain; state.xp += 150 + (curE.lvl * 20);
+        if(state.questActive.zeynep && curE.name.includes("Yağız")) state.quests.zeynep++;
+        if(state.xp >= state.lvl * 500) { state.lvl++; state.xp = 0; state.maxHp += 50; state.hp = state.maxHp; }
+        state.isBattle = false; document.getElementById('battle-screen').style.display = 'none';
+        updateQuestUI(); updateUI();
+    }
+
+    function respawn() { state.hp = 50; state.wX = 1500; state.wY = 1600; state.isBattle = false; document.getElementById('battle-screen').style.display = 'none'; updateUI(); }
+    function updateQuestUI() {
+        let h = "";
+        if(state.questActive.zeynep) h += `<div>Zeynep: Fare (${state.quests.zeynep}/5)</div>`;
+        if(state.questActive.miray) h += `<div>Miray: Meyve (${state.quests.miray}/10)</div>`;
+        if(state.questActive.ipek) h += `<div>İpek: Yemek (${state.quests.ipek}/3)</div>`;
+        document.getElementById('q-list').innerHTML = h || "NPC'lere git!";
+    }
+    function updateUI() {
+        document.getElementById('st-hp').innerText = state.hp + "/" + state.maxHp;
+        document.getElementById('st-gold').innerText = state.gold;
+        document.getElementById('st-lvl').innerText = state.lvl;
+        document.getElementById('st-fish').innerText = state.fish;
+        document.getElementById('xp-fill').style.width = (state.xp / (state.lvl*500)) * 100 + "%";
+    }
+    function updateBattleUI() {
+        document.getElementById('btl-enemy-hp').style.width = (curE.curHp / curE.maxHp) * 100 + "%";
+        document.getElementById('btl-player-hp').style.width = (state.hp / state.maxHp) * 100 + "%";
+    }
+    window.addEventListener('mousedown', e => { if(!state.isBattle) { state.tX = state.wX + (e.clientX - window.innerWidth/2); state.tY = state.wY + (e.clientY - window.innerHeight/2); } });
+    init();
+</script>
+</body>
+</html>

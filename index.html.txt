@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Undertale Adventure: Mahalle Savaşları</title>
+    <style>
+        body { background: #111; color: white; font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; margin: 0; overflow: hidden; }
+        #screen { width: 640px; height: 480px; border: 4px solid white; position: relative; background: black; margin-top: 20px; overflow: hidden; }
+        
+        /* --- HARITA MODU --- */
+        #map { width: 1000px; height: 1000px; position: absolute; background-color: #222; background-image: 
+            radial-gradient(#444 1px, transparent 1px); background-size: 40px 40px; transition: 0.1s linear; }
+        .wall { position: absolute; background: #555; border: 2px solid #777; }
+        .grass { position: absolute; background: rgba(0, 255, 0, 0.1); border: 1px dashed green; }
+        #player { width: 20px; height: 20px; background: red; position: absolute; border-radius: 50%; box-shadow: 0 0 10px red; z-index: 10; }
+        #player::after { content: '❤'; color: white; font-size: 14px; position: absolute; left: 2px; top: -2px; }
+
+        /* --- SAVAS MODU --- */
+        #battle-screen { position: absolute; width: 100%; height: 100%; background: black; z-index: 20; display: none; flex-direction: column; align-items: center; justify-content: space-around; }
+        #boss-art { white-space: pre; font-size: 12px; color: #fff; text-align: center; line-height: 1.1; }
+        #dialogue-box { width: 90%; height: 80px; border: 3px solid white; padding: 10px; font-size: 16px; margin-bottom: 10px; }
+        .hp-bar-bg { width: 200px; height: 15px; background: #440000; border: 2px solid white; }
+        .hp-bar-fill { height: 100%; background: #00ff00; width: 100%; transition: 0.3s; }
+        .menu { display: flex; gap: 10px; }
+        button { background: black; color: #ff9d00; border: 2px solid #ff9d00; padding: 8px 15px; font-size: 16px; cursor: pointer; font-family: inherit; }
+        button:hover { background: #ff9d00; color: black; }
+
+        /* Savunma Barı */
+        #defense-wrap { width: 80%; height: 40px; border: 2px solid white; position: relative; display: none; margin-bottom: 10px; }
+        #target-zone { position: absolute; height: 100%; background: rgba(0, 255, 0, 0.5); }
+        #cursor { width: 4px; height: 100%; background: white; position: absolute; left: 0; box-shadow: 0 0 5px white; }
+
+        #ui-hint { position: absolute; bottom: 10px; color: #555; font-size: 12px; }
+    </style>
+</head>
+<body>
+
+    <div id="screen">
+        <div id="map">
+            <div id="player"></div>
+            </div>
+
+        <div id="battle-screen">
+            <h2 id="boss-name" style="color:yellow; margin:0">BOSS</h2>
+            <div id="boss-art"></div>
+            
+            <div style="display: flex; gap: 20px; align-items: center;">
+                <span>BOSS HP:</span>
+                <div class="hp-bar-bg"><div id="boss-hp" class="hp-bar-fill" style="background: red;"></div></div>
+            </div>
+
+            <div id="dialogue-box">Bir şeyler oluyor...</div>
+
+            <div id="defense-wrap">
+                <div id="target-zone"></div>
+                <div id="cursor"></div>
+            </div>
+
+            <div class="menu" id="battle-menu">
+                <button onclick="battleAction('attack')">🗡 VUR</button>
+                <button onclick="battleAction('heal')">🍕 YE</button>
+                <button onclick="battleAction('talk')">💬 KONUŞ</button>
+            </div>
+            
+            <div style="display: flex; gap: 20px; align-items: center;">
+                <span>SENİN HP:</span>
+                <div class="hp-bar-bg"><div id="player-hp" class="hp-bar-fill"></div></div>
+            </div>
+        </div>
+
+        <div id="ui-hint">Ok Tuşları ile gez, rastgele bir boss çıkabilir!</div>
+    </div>
+
+    <script>
+        const map = document.getElementById('map');
+        const player = document.getElementById('player');
+        const battleScreen = document.getElementById('battle-screen');
+        const dialogue = document.getElementById('dialogue-box');
+        
+        let pX = 100, pY = 100;
+        let isBattle = false;
+        let currentBossIdx = 0;
+        let pHP = 100, maxPHP = 100;
+        let bHP = 100;
+
+        // Boss Verileri
+        const bosses = [
+            { name: "Lağım Faresi Yağız", hp: 60, atk: 10, speed: 3, art: `
+      _     _
+     (o\\---/o)
+      (  u u  )
+      /|  o  |\\  *squeak*
+     / (_____) \\
+    (___________)` },
+            { name: "Kaslı İbo", hp: 120, atk: 20, speed: 4.5, art: `
+       💪(0_0)💪
+         |___|
+        /|   |\\
+       / |___| \\
+        _|   |_` },
+            { name: "Tekno Miraç", hp: 200, atk: 30, speed: 6, art: `
+      [=========]
+      [  -   -  ]
+      [    ^    ]  < ERROR 404
+      [  _____  ]
+      [_________]` },
+            { name: "Hamile Gokke", hp: 500, atk: 45, speed: 8, art: `
+       /XXXXXXX\\
+      (  ò   ó  )
+      (    ^    )
+     (   O   O   )  <-- BEBEK GELİYOR
+    (      V      )
+     (___________)` },
+            { name: "Darius (Kabus)", hp: 1000, atk: 90, speed: 13, art: `
+         /^^^\\
+        (|X_X|)
+       --|BAL|--
+      /  |TA |  \\
+     /   |___|   \\
+        /     \\` }
+        ];
+
+        // Harita Engelleri Oluştur
+        function createMap() {
+            for(let i=0; i<15; i++) {
+                let wall = document.createElement('div');
+                wall.className = 'wall';
+                wall.style.width = '100px'; wall.style.height = '100px';
+                wall.style.left = Math.random() * 800 + 'px';
+                wall.style.top = Math.random() * 800 + 'px';
+                map.appendChild(wall);
+            }
+        }
+        createMap();
+
+        // Hareket Sistemi
+        window.addEventListener('keydown', e => {
+            if(isBattle) return;
+            let oldX = pX, oldY = pY;
+            if(e.key === 'ArrowUp' || e.key === 'w') pY -= 10;
+            if(e.key === 'ArrowDown' || e.key === 's') pY += 10;
+            if(e.key === 'ArrowLeft' || e.key === 'a') pX -= 10;
+            if(e.key === 'ArrowRight' || e.key === 'd') pX += 10;
+
+            // Sınırlar
+            pX = Math.max(0, Math.min(980, pX));
+            pY = Math.max(0, Math.min(980, pY));
+
+            player.style.left = pX + 'px';
+            player.style.top = pY + 'px';
+            
+            // Kamerayı takip ettir
+            map.style.transform = `translate(${-pX + 300}px, ${-pY + 220}px)`;
+
+            // Rastgele Karşılaşma (Her adımda %3 ihtimal)
+            if(Math.random() < 0.03) {
+                startBattle();
+            }
+        });
+
+        // Savaş Başlatma
+        function startBattle() {
+            if (currentBossIdx >= bosses.length) return;
+            isBattle = true;
+            battleScreen.style.display = 'flex';
+            const b = bosses[currentBossIdx];
+            bHP = b.hp;
+            document.getElementById('boss-name').innerText = b.name;
+            document.getElementById('boss-art').innerText = b.art;
+            updateUI();
+            dialogue.innerText = "* " + b.name + " önünü kesti!";
+        }
+
+        function battleAction(type) {
+            const b = bosses[currentBossIdx];
+            if(type === 'attack') {
+                let dmg = 20 + Math.floor(Math.random() * 20);
+                bHP -= dmg;
+                dialogue.innerText = `Saldırdın! ${dmg} hasar!`;
+            } else if(type === 'heal') {
+                pHP = Math.min(maxPHP, pHP + 40);
+                dialogue.innerText = `Simit yedin, canın tazelendi!`;
+            } else {
+                dialogue.innerText = `${b.name} seninle konuşmak istemiyor!`;
+            }
+
+            updateUI();
+            if(bHP <= 0) {
+                dialogue.innerText = b.name + " yenildi!";
+                setTimeout(() => {
+                    isBattle = false;
+                    battleScreen.style.display = 'none';
+                    currentBossIdx++;
+                    if(currentBossIdx >= bosses.length) alert("TEBRİKLER! OYUN BİTTİ!");
+                }, 1500);
+            } else {
+                setTimeout(bossAttack, 1000);
+            }
+        }
+
+        let cursorAnim;
+        function bossAttack() {
+            document.getElementById('battle-menu').style.display = 'none';
+            const defenseWrap = document.getElementById('defense-wrap');
+            const targetZone = document.getElementById('target-zone');
+            const cursor = document.getElementById('cursor');
+            defenseWrap.style.display = 'block';
+            
+            // Rastgele hedef alan
+            let tw = 60 - (currentBossIdx * 8); // Boss zorlaştıkça alan daralır
+            let tx = Math.random() * (100 - tw);
+            targetZone.style.left = tx + '%';
+            targetZone.style.width = tw + '%';
+
+            let cPos = 0;
+            let cDir = bosses[currentBossIdx].speed;
+            
+            function move() {
+                cPos += cDir;
+                if(cPos >= 100 || cPos <= 0) cDir *= -1;
+                cursor.style.left = cPos + '%';
+                cursorAnim = requestAnimationFrame(move);
+            }
+            move();
+
+            // Durdurma Mekaniği (Tek seferlik click)
+            const stopHit = () => {
+                cancelAnimationFrame(cursorAnim);
+                window.removeEventListener('keydown', spaceHandler);
+                defenseWrap.removeEventListener('click', stopHit);
+
+                if(cPos >= tx && cPos <= (tx + tw)) {
+                    dialogue.innerText = "Sıyrıldın! Hasar almadın.";
+                } else {
+                    let dmg = bosses[currentBossIdx].atk;
+                    pHP -= dmg;
+                    dialogue.innerText = `AH! ${dmg} hasar aldın!`;
+                }
+
+                updateUI();
+                setTimeout(() => {
+                    defenseWrap.style.display = 'none';
+                    document.getElementById('battle-menu').style.display = 'flex';
+                    if(pHP <= 0) location.reload();
+                }, 1000);
+            };
+
+            const spaceHandler = (e) => { if(e.key === ' ') stopHit(); };
+            window.addEventListener('keydown', spaceHandler);
+            defenseWrap.addEventListener('click', stopHit);
+        }
+
+        function updateUI() {
+            const b = bosses[currentBossIdx];
+            document.getElementById('boss-hp').style.width = (bHP / b.hp) * 100 + "%";
+            document.getElementById('player-hp').style.width = (pHP / maxPHP) * 100 + "%";
+        }
+
+    </script>
+</body>
+</html>
