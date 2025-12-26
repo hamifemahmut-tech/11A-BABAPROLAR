@@ -2,260 +2,466 @@
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <title>Undertale Adventure: Mahalle Savaşları</title>
+    <title>Mahalle Efsaneleri: EJDER OTOBANI</title>
     <style>
-        body { background: #111; color: white; font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; margin: 0; overflow: hidden; }
-        #screen { width: 640px; height: 480px; border: 4px solid white; position: relative; background: black; margin-top: 20px; overflow: hidden; }
+        :root { --grass: #2d5a27; --dirt: #4b3621; --stone: #444; --gold: #ff9d00; --loot: #a020f0; --boss: #8b0000; }
+        body { background: #000; color: #fff; font-family: 'Courier New', monospace; margin: 0; overflow: hidden; }
         
-        /* --- HARITA MODU --- */
-        #map { width: 1000px; height: 1000px; position: absolute; background-color: #222; background-image: 
-            radial-gradient(#444 1px, transparent 1px); background-size: 40px 40px; transition: 0.1s linear; }
-        .wall { position: absolute; background: #555; border: 2px solid #777; }
-        .grass { position: absolute; background: rgba(0, 255, 0, 0.1); border: 1px dashed green; }
-        #player { width: 20px; height: 20px; background: red; position: absolute; border-radius: 50%; box-shadow: 0 0 10px red; z-index: 10; }
-        #player::after { content: '❤'; color: white; font-size: 14px; position: absolute; left: 2px; top: -2px; }
+        #day-night-overlay { position: fixed; inset: 0; pointer-events: none; z-index: 8000; transition: background 5s; background: rgba(0,0,30,0); }
+        
+        #ui-top { position: fixed; top: 0; width: 100%; background: rgba(0,0,0,0.95); padding: 10px; z-index: 9000; border-bottom: 2px solid white; display: flex; flex-direction: column; align-items: center; }
+        .stat-row { display: flex; gap: 15px; font-size: 14px; margin-bottom: 5px; }
+        #xp-container { width: 80%; height: 6px; background: #333; border-radius: 3px; overflow: hidden; }
+        #xp-fill { width: 0%; height: 100%; background: #00e5ff; }
+        
+        #quest-panel { position: fixed; top: 120px; left: 10px; background: rgba(0,0,0,0.85); border: 1px solid var(--gold); padding: 10px; z-index: 5000; min-width: 200px; font-size: 13px; }
 
-        /* --- SAVAS MODU --- */
-        #battle-screen { position: absolute; width: 100%; height: 100%; background: black; z-index: 20; display: none; flex-direction: column; align-items: center; justify-content: space-around; }
-        #boss-art { white-space: pre; font-size: 12px; color: #fff; text-align: center; line-height: 1.1; }
-        #dialogue-box { width: 90%; height: 80px; border: 3px solid white; padding: 10px; font-size: 16px; margin-bottom: 10px; }
-        .hp-bar-bg { width: 200px; height: 15px; background: #440000; border: 2px solid white; }
-        .hp-bar-fill { height: 100%; background: #00ff00; width: 100%; transition: 0.3s; }
-        .menu { display: flex; gap: 10px; }
-        button { background: black; color: #ff9d00; border: 2px solid #ff9d00; padding: 8px 15px; font-size: 16px; cursor: pointer; font-family: inherit; }
-        button:hover { background: #ff9d00; color: black; }
-
-        /* Savunma Barı */
-        #defense-wrap { width: 80%; height: 40px; border: 2px solid white; position: relative; display: none; margin-bottom: 10px; }
-        #target-zone { position: absolute; height: 100%; background: rgba(0, 255, 0, 0.5); }
-        #cursor { width: 4px; height: 100%; background: white; position: absolute; left: 0; box-shadow: 0 0 5px white; }
-
-        #ui-hint { position: absolute; bottom: 10px; color: #555; font-size: 12px; }
+        #shop-ui, #battle-screen { position: fixed; inset: 0; background: rgba(0,0,0,0.98); z-index: 10000; display: none; flex-direction: column; align-items: center; justify-content: center; }
+        
+        .hp-bar { width: 350px; height: 25px; background: #333; border: 2px solid white; margin: 5px 0; position: relative; }
+        .hp-text { position: absolute; width: 100%; text-align: center; line-height: 25px; font-weight: bold; text-shadow: 1px 1px 2px black; z-index: 2; }
+        
+        #dodge-zone { width: 350px; height: 40px; border: 2px solid #fff; position: relative; background: #222; display: none; margin: 20px 0; }
+        #dodge-target { position: absolute; width: 50px; height: 100%; background: lime; left: 150px; }
+        #dodge-cursor { position: absolute; width: 6px; height: 100%; background: #fff; }
+        
+        button { background: #000; color: var(--gold); border: 2px solid var(--gold); padding: 10px 20px; cursor: pointer; margin: 5px; font-weight: bold; transition: 0.2s; }
+        button:hover { background: var(--gold); color: #000; }
+        
+        #game-container { width: 100vw; height: 100vh; position: relative; overflow: hidden; }
+        #world { position: absolute; width: 4000px; height: 4000px; background: var(--grass); z-index: 1; border: 20px solid #1a3317; }
+        
+        .village-area { position: absolute; background: var(--dirt); border-radius: 20px; z-index: 2; }
+        
+        /* KALE ALANI */
+        .castle-area { position: absolute; background: var(--stone); border: 10px solid #222; z-index: 2; }
+        .castle-gate { position: absolute; width: 100px; height: 20px; background: #000; border: 2px solid red; z-index: 5; text-align: center; color: red; font-size: 10px; cursor: pointer; }
+        .inner-gate { position: absolute; width: 60px; height: 60px; background: #220000; border: 2px solid red; z-index: 5; text-align: center; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 30px; }
+        
+        .tree { position: absolute; font-size: 40px; transform: translate(-50%, -100%); z-index: 10; pointer-events: none; }
+        .fruit { position: absolute; font-size: 25px; cursor: pointer; z-index: 15; animation: bounce 1s infinite; }
+        
+        #player { width: 30px; height: 30px; background: red; border-radius: 50%; position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 20px red; z-index: 1000; }
+        .npc { width: 45px; height: 45px; border-radius: 50%; border: 2px solid white; cursor: pointer; position: absolute; z-index: 20; transform: translate(-50%, -50%); }
+        .npc-label { position: absolute; top: -45px; width: 120px; text-align: center; left: -38px; font-weight: bold; font-size: 12px; text-shadow: 2px 2px #000; }
+        
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
     </style>
 </head>
 <body>
 
-    <div id="screen">
-        <div id="map">
-            <div id="player"></div>
-            </div>
+    <div id="day-night-overlay"></div>
 
-        <div id="battle-screen">
-            <h2 id="boss-name" style="color:yellow; margin:0">BOSS</h2>
-            <div id="boss-art"></div>
-            
-            <div style="display: flex; gap: 20px; align-items: center;">
-                <span>BOSS HP:</span>
-                <div class="hp-bar-bg"><div id="boss-hp" class="hp-bar-fill" style="background: red;"></div></div>
-            </div>
-
-            <div id="dialogue-box">Bir şeyler oluyor...</div>
-
-            <div id="defense-wrap">
-                <div id="target-zone"></div>
-                <div id="cursor"></div>
-            </div>
-
-            <div class="menu" id="battle-menu">
-                <button onclick="battleAction('attack')">🗡 VUR</button>
-                <button onclick="battleAction('heal')">🍕 YE</button>
-                <button onclick="battleAction('talk')">💬 KONUŞ</button>
-            </div>
-            
-            <div style="display: flex; gap: 20px; align-items: center;">
-                <span>SENİN HP:</span>
-                <div class="hp-bar-bg"><div id="player-hp" class="hp-bar-fill"></div></div>
-            </div>
+    <div id="ui-top">
+        <div class="stat-row">
+            <span>❤ <b id="st-hp">100/100</b></span>
+            <span>💰 <b id="st-gold">100</b></span>
+            <span>⭐ LVL: <b id="st-lvl">1</b></span>
+            <span style="color:var(--loot)">🎒 GANİMET: <b id="st-loot">0</b></span>
+            <span id="st-time" style="color:yellow">☀️ GÜNDÜZ</span>
         </div>
-
-        <div id="ui-hint">Ok Tuşları ile gez, rastgele bir boss çıkabilir!</div>
+        <div id="xp-container"><div id="xp-fill"></div></div>
     </div>
 
-    <script>
-        const map = document.getElementById('map');
-        const player = document.getElementById('player');
-        const battleScreen = document.getElementById('battle-screen');
-        const dialogue = document.getElementById('dialogue-box');
+    <div id="quest-panel">
+        <b style="color:var(--gold)">GÖREVLER</b>
+        <div id="q-list">NPC'lerden görev al!</div>
+    </div>
+
+    <div id="shop-ui">
+        <h2 style="color:orange">TOSTÇU YAKUP - MARKET</h2>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; max-width:600px">
+            <button onclick="buy('sis', 1000)">⚔️ 18 Cmlik Şiş (+50 Dmg) - 1000G</button>
+            <button onclick="buy('zirh', 750)">🛡️ Demir Zırh (-15 Dmg) - 750G</button>
+            <button onclick="buy('glove', 400)">🧤 Ganimet Eldiveni - 400G</button>
+            <button onclick="buy('key', 5000)">🔑 KALE ANAHTARI - 5000G</button>
+            <button onclick="buy('tost', 500)">🥪 Yarım Ekmek (+50 MaxHP) - 500G</button>
+            <button onclick="sellLoot()" style="color:var(--loot)">🎒 Ganimet Sat (50G)</button>
+        </div>
+        <br>
+        <button onclick="document.getElementById('shop-ui').style.display='none'" style="width:100%">DÜKKANI KAPAT</button>
+    </div>
+
+    <div id="battle-screen">
+        <h2 id="btl-name" style="color:red"></h2>
+        <div class="hp-bar"><div class="hp-text"><span id="txt-enemy-hp"></span></div><div id="btl-enemy-hp" style="height:100%; background:red; width:100%; transition:0.2s"></div></div>
+        <div id="btl-sprite" style="white-space:pre; font-family:monospace; margin:20px; font-size:16px; line-height:16px; text-align:center;"></div>
+        <div id="battle-log" style="color:yellow; height:30px; font-weight:bold; font-size:18px"></div>
+        <div id="dodge-zone"><div id="dodge-target"></div><div id="dodge-cursor"></div><button onclick="attemptDodge()" style="position:absolute; right:-90px; background:lime; color:black">REFLEKS!</button></div>
+        <div id="btl-btns">
+            <button onclick="combat('attack')">🗡 SALDIR</button>
+            <button onclick="combat('run')">🏃 KAÇ</button>
+            <button onclick="combat('heal')">🍕 YEMEK YE</button>
+        </div>
+        <div class="hp-bar"><div class="hp-text"><span id="txt-player-hp"></span></div><div id="btl-player-hp" style="height:100%; background:lime; width:100%; transition:0.2s"></div></div>
+    </div>
+
+    <div id="game-container">
+        <div id="world"></div>
+        <div id="player"></div>
+    </div>
+
+<script>
+    const state = {
+        wX: 1500, wY: 1500, tX: 1500, tY: 1500,
+        hp: 100, maxHp: 100, gold: 100, lvl: 1, xp: 0, loot: 0,
+        hasGlove: false, hasSis: false, defense: 0, 
+        hasKey: false, // Kale Giriş Anahtarı
+        hasInnerKey: false, // Darius'tan düşen anahtar
+        dariusDead: false,
         
-        let pX = 100, pY = 100;
-        let isBattle = false;
-        let currentBossIdx = 0;
-        let pHP = 100, maxPHP = 100;
-        let bHP = 100;
+        isNight: false, timeCount: 0,
+        isBattle: false, isTurn: true,
+        
+        quests: { zeynep: 0, miray: 0, ipek: 0 },
+        qLvl: { zeynep: 1, miray: 1, ipek: 1 },
+        qActive: { zeynep: false, miray: false, ipek: false }
+    };
 
-        // Boss Verileri
-        const bosses = [
-            { name: "Lağım Faresi Yağız", hp: 60, atk: 10, speed: 3, art: `
-      _     _
-     (o\\---/o)
-      (  u u  )
-      /|  o  |\\  *squeak*
-     / (_____) \\
-    (___________)` },
-            { name: "Kaslı İbo", hp: 120, atk: 20, speed: 4.5, art: `
-       💪(0_0)💪
-         |___|
-        /|   |\\
-       / |___| \\
-        _|   |_` },
-            { name: "Tekno Miraç", hp: 200, atk: 30, speed: 6, art: `
-      [=========]
-      [  -   -  ]
-      [    ^    ]  < ERROR 404
-      [  _____  ]
-      [_________]` },
-            { name: "Hamile Gokke", hp: 500, atk: 45, speed: 8, art: `
-       /XXXXXXX\\
-      (  ò   ó  )
-      (    ^    )
-     (   O   O   )  <-- BEBEK GELİYOR
-    (      V      )
-     (___________)` },
-            { name: "Darius (Kabus)", hp: 1000, atk: 90, speed: 13, art: `
-         /^^^\\
-        (|X_X|)
-       --|BAL|--
-      /  |TA |  \\
-     /   |___|   \\
-        /     \\` }
-        ];
+    // Bölge 1 Düşmanları
+    const mobsVillage = [
+        { id:'normal', name: "Lağım Faresi Yağız", hp: 60, atk: 15, lvl: 1, art: "(q\\---/p)\n ( o o )" },
+        { id:'normal', name: "Pasif Salih", hp: 150, atk: 25, lvl: 3, art: "(- _ -)\n--|   |--" },
+        { id:'normal', name: "At Kazım", hp: 450, atk: 45, lvl: 6, art: "/\\___/\\\n( o o )" }
+    ];
 
-        // Harita Engelleri Oluştur
-        function createMap() {
-            for(let i=0; i<15; i++) {
-                let wall = document.createElement('div');
-                wall.className = 'wall';
-                wall.style.width = '100px'; wall.style.height = '100px';
-                wall.style.left = Math.random() * 800 + 'px';
-                wall.style.top = Math.random() * 800 + 'px';
-                map.appendChild(wall);
-            }
-        }
-        createMap();
+    // Bölge 2 (Kale) Düşmanları
+    const mobsCastle = [
+        { id:'normal', name: "Tekno Miraç", hp: 800, atk: 70, lvl: 10, art: "[O_O]\n/|Lazer|\\" },
+        { id:'normal', name: "Abla Ömer", hp: 950, atk: 85, lvl: 12, art: "(~.~)\n<Terlik>" },
+        { id:'normal', name: "Kaslı İbo", hp: 1200, atk: 100, lvl: 14, art: "/'''\\\n( O O )\n/DAMBIL\\" }
+    ];
 
-        // Hareket Sistemi
-        window.addEventListener('keydown', e => {
-            if(isBattle) return;
-            let oldX = pX, oldY = pY;
-            if(e.key === 'ArrowUp' || e.key === 'w') pY -= 10;
-            if(e.key === 'ArrowDown' || e.key === 's') pY += 10;
-            if(e.key === 'ArrowLeft' || e.key === 'a') pX -= 10;
-            if(e.key === 'ArrowRight' || e.key === 'd') pX += 10;
+    // BOSS VERİLERİ
+    const bossDarius = { id:'darius', name: "KORUYAN DARIUS", hp: 3000, atk: 150, lvl: 20, art: "  /---\\\n | 0 0 |\n--|XXX|--\n  |   |" };
+    const bossMahmut = { 
+        id:'mahmut', name: "EJDER OTOBANI MAHMUT", hp: 6000, atk: 200, lvl: 30, 
+        phase: 1,
+        art1: "   /\\_/\\\n  ( o.o )\n >|ZIRH|<", 
+        art2: "   /\\_/\\\n  ( O.O )\n >|KIRIK|<", 
+        art3: "   /\\_/\\\n  ( X.X )\n >|DELİ|<" 
+    };
 
-            // Sınırlar
-            pX = Math.max(0, Math.min(980, pX));
-            pY = Math.max(0, Math.min(980, pY));
+    function init() {
+        const w = document.getElementById('world');
+        
+        // Köy
+        w.innerHTML += `<div class="village-area" style="width:800px; height:800px; left:1100px; top:1100px"></div>`;
+        
+        // Kale Alanı (Sağ Üst)
+        w.innerHTML += `<div class="castle-area" style="width:1000px; height:1000px; left:2200px; top:200px"></div>`;
+        
+        // Kale Kapısı (Giriş)
+        let gate = document.createElement('div');
+        gate.className = 'castle-gate'; gate.style.left = '2650px'; gate.style.top = '1180px';
+        gate.innerText = "KİLİTLİ KAPI (ANAHTAR LAZIM)";
+        gate.onclick = (e) => enterCastle(e);
+        w.appendChild(gate);
 
-            player.style.left = pX + 'px';
-            player.style.top = pY + 'px';
+        // İç Kapı (Darius & Mahmut)
+        let innerGate = document.createElement('div');
+        innerGate.className = 'inner-gate'; innerGate.style.left = '2670px'; innerGate.style.top = '300px';
+        innerGate.innerText = "👹";
+        innerGate.onclick = (e) => fightBoss(e);
+        w.appendChild(innerGate);
+
+        spawnNPC('yakup', 'Tostçu Yakup', 1500, 1600, 'orange', 'MARKET');
+        spawnNPC('zeynep', 'Zeynep', 1300, 1300, 'blue', 'SAVAŞÇI');
+        spawnNPC('miray', 'Miray', 1700, 1300, 'pink', 'BAHÇIVAN');
+        spawnNPC('ipek', 'İpek', 1500, 1200, 'purple', 'AŞÇI');
+        
+        // Ağaçlar
+        for(let i=0; i<60; i++) {
+            let x = Math.random()*3500+100, y = Math.random()*3500+100;
+            // Kalenin içine ağaç koyma
+            if(x > 2200 && x < 3200 && y > 200 && y < 1200) continue; 
             
-            // Kamerayı takip ettir
-            map.style.transform = `translate(${-pX + 300}px, ${-pY + 220}px)`;
-
-            // Rastgele Karşılaşma (Her adımda %3 ihtimal)
-            if(Math.random() < 0.03) {
-                startBattle();
+            let t = document.createElement('div'); t.className = 'tree';
+            t.style.left = x+'px'; t.style.top = y+'px'; t.innerText = '🌲'; w.appendChild(t);
+            if(Math.random() < 0.3) {
+                let f = document.createElement('div'); f.className = 'fruit';
+                f.style.left = (x+20)+'px'; f.style.top = (y+20)+'px'; f.innerText = Math.random() > 0.5 ? '🍎' : '🍓';
+                f.onclick = (e) => { e.stopPropagation(); f.remove(); if(state.qActive.miray) { state.quests.miray++; checkQuestCompletion('miray'); } };
+                w.appendChild(f);
             }
-        });
-
-        // Savaş Başlatma
-        function startBattle() {
-            if (currentBossIdx >= bosses.length) return;
-            isBattle = true;
-            battleScreen.style.display = 'flex';
-            const b = bosses[currentBossIdx];
-            bHP = b.hp;
-            document.getElementById('boss-name').innerText = b.name;
-            document.getElementById('boss-art').innerText = b.art;
-            updateUI();
-            dialogue.innerText = "* " + b.name + " önünü kesti!";
         }
+        setInterval(updateTime, 1000); 
+        updateUI(); updateQuestUI(); loop();
+    }
 
-        function battleAction(type) {
-            const b = bosses[currentBossIdx];
-            if(type === 'attack') {
-                let dmg = 20 + Math.floor(Math.random() * 20);
-                bHP -= dmg;
-                dialogue.innerText = `Saldırdın! ${dmg} hasar!`;
-            } else if(type === 'heal') {
-                pHP = Math.min(maxPHP, pHP + 40);
-                dialogue.innerText = `Simit yedin, canın tazelendi!`;
+    function updateTime() {
+        state.timeCount++;
+        if(state.timeCount % 30 === 0) {
+            state.isNight = !state.isNight;
+            document.getElementById('day-night-overlay').style.background = state.isNight ? "rgba(0,0,50,0.7)" : "rgba(0,0,0,0)";
+            document.getElementById('st-time').innerText = state.isNight ? "🌙 GECE" : "☀️ GÜNDÜZ";
+        }
+    }
+
+    function enterCastle(e) {
+        e.stopPropagation();
+        if(state.hasKey) {
+            alert("Anahtarı kullandın. KALE KAPISI AÇILDI! Dikkatli ol...");
+            e.target.style.display = 'none'; // Kapıyı kaldır
+        } else {
+            alert("Kapı kilitli! Tostçu Yakup'tan anahtar almalısın (5000 Gold).");
+        }
+    }
+
+    function fightBoss(e) {
+        e.stopPropagation();
+        if(!state.hasKey) { alert("Önce kaleye girmen lazım!"); return; }
+
+        if(!state.dariusDead) {
+            startBattle(bossDarius);
+        } else {
+            if(state.hasInnerKey) {
+                if(confirm("EJDER ODASINA GİRMEK İSTİYOR MUSUN? GERİ DÖNÜŞ YOK!")) {
+                    startBattle(bossMahmut);
+                }
             } else {
-                dialogue.innerText = `${b.name} seninle konuşmak istemiyor!`;
-            }
-
-            updateUI();
-            if(bHP <= 0) {
-                dialogue.innerText = b.name + " yenildi!";
-                setTimeout(() => {
-                    isBattle = false;
-                    battleScreen.style.display = 'none';
-                    currentBossIdx++;
-                    if(currentBossIdx >= bosses.length) alert("TEBRİKLER! OYUN BİTTİ!");
-                }, 1500);
-            } else {
-                setTimeout(bossAttack, 1000);
+                alert("Darius öldü ama anahtarı almadın mı?");
             }
         }
+    }
 
-        let cursorAnim;
-        function bossAttack() {
-            document.getElementById('battle-menu').style.display = 'none';
-            const defenseWrap = document.getElementById('defense-wrap');
-            const targetZone = document.getElementById('target-zone');
-            const cursor = document.getElementById('cursor');
-            defenseWrap.style.display = 'block';
-            
-            // Rastgele hedef alan
-            let tw = 60 - (currentBossIdx * 8); // Boss zorlaştıkça alan daralır
-            let tx = Math.random() * (100 - tw);
-            targetZone.style.left = tx + '%';
-            targetZone.style.width = tw + '%';
+    function spawnNPC(id, name, x, y, color, job) {
+        let d = document.createElement('div'); d.className = 'npc';
+        d.style.left = x+'px'; d.style.top = y+'px'; d.style.backgroundColor = color;
+        d.innerHTML = `<div class="npc-label" style="color:${color}">${name}<br><small style="color:white">${job}</small></div>`;
+        d.onclick = (e) => { 
+            e.stopPropagation(); 
+            if(id==='yakup') document.getElementById('shop-ui').style.display='flex'; 
+            else { 
+                if(!state.qActive[id]) { state.qActive[id] = true; alert(`${name}: Görev verildi!`); }
+                else alert(`${name}: Acele et!`);
+                updateQuestUI();
+            } 
+        };
+        document.getElementById('world').appendChild(d);
+    }
 
-            let cPos = 0;
-            let cDir = bosses[currentBossIdx].speed;
-            
-            function move() {
-                cPos += cDir;
-                if(cPos >= 100 || cPos <= 0) cDir *= -1;
-                cursor.style.left = cPos + '%';
-                cursorAnim = requestAnimationFrame(move);
-            }
-            move();
+    function checkQuestCompletion(npc) {
+        let t = (npc==='ipek'?3:npc==='miray'?5:3) * state.qLvl[npc];
+        if(state.quests[npc] >= t) {
+            let rw = state.qLvl[npc]*300; state.gold += rw; state.quests[npc]=0; state.qLvl[npc]++;
+            alert(`GÖREV BİTTİ! +${rw} Gold`); updateUI();
+        }
+        updateQuestUI();
+    }
 
-            // Durdurma Mekaniği (Tek seferlik click)
-            const stopHit = () => {
-                cancelAnimationFrame(cursorAnim);
-                window.removeEventListener('keydown', spaceHandler);
-                defenseWrap.removeEventListener('click', stopHit);
+    function buy(type, price) {
+        if(state.gold < price) return alert("Para yetmiyor!");
+        if(type === 'sis') { if(state.hasSis) return alert("Var zaten"); state.hasSis=true; }
+        if(type === 'zirh') { if(state.defense>0) return alert("Var zaten"); state.defense=15; }
+        if(type === 'glove') { if(state.hasGlove) return alert("Var zaten"); state.hasGlove=true; }
+        if(type === 'key') { if(state.hasKey) return alert("Var zaten"); state.hasKey=true; }
+        if(type === 'tost') { state.maxHp+=50; state.hp=state.maxHp; }
+        state.gold -= price; updateUI(); alert("Satın alındı!");
+    }
 
-                if(cPos >= tx && cPos <= (tx + tw)) {
-                    dialogue.innerText = "Sıyrıldın! Hasar almadın.";
-                } else {
-                    let dmg = bosses[currentBossIdx].atk;
-                    pHP -= dmg;
-                    dialogue.innerText = `AH! ${dmg} hasar aldın!`;
+    function sellLoot() {
+        if(state.loot<=0) return alert("Ganimet yok!");
+        state.gold += state.loot*50; state.loot=0; updateUI();
+    }
+
+    function loop() {
+        if(!state.isBattle) {
+            let dx = state.tX - state.wX, dy = state.tY - state.wY;
+            if(Math.hypot(dx, dy) > 5) {
+                state.wX += dx * 0.05; state.wY += dy * 0.05;
+                
+                // Kale sınırları (2200, 200) -> (3200, 1200)
+                let inCastle = (state.wX > 2200 && state.wX < 3200 && state.wY > 200 && state.wY < 1200);
+                
+                // Kilitli kapı engeli (Key yoksa kaleye giremez)
+                if(!state.hasKey && inCastle) {
+                     state.wX -= dx*0.1; state.wY -= dy*0.1; // Geri it
                 }
 
-                updateUI();
-                setTimeout(() => {
-                    defenseWrap.style.display = 'none';
-                    document.getElementById('battle-menu').style.display = 'flex';
-                    if(pHP <= 0) location.reload();
-                }, 1000);
-            };
+                if(Math.random() < 0.012) {
+                    if(inCastle) startBattle(null, 'castle');
+                    else if(!(state.wX>1100 && state.wX<1900 && state.wY>1100 && state.wY<1900)) startBattle(null, 'village');
+                }
+            }
+            document.getElementById('world').style.transform = `translate(${window.innerWidth/2 - state.wX}px, ${window.innerHeight/2 - state.wY}px)`;
+        }
+        requestAnimationFrame(loop);
+    }
 
-            const spaceHandler = (e) => { if(e.key === ' ') stopHit(); };
-            window.addEventListener('keydown', spaceHandler);
-            defenseWrap.addEventListener('click', stopHit);
+    let curE;
+
+    function startBattle(bossObj, zone) {
+        state.isBattle = true; state.isTurn = true;
+        
+        if(bossObj) {
+            // Boss Kopyası
+            curE = JSON.parse(JSON.stringify(bossObj));
+            curE.curHp = curE.hp; curE.maxHp = curE.hp;
+            // Art fix for Mahmut
+            if(curE.id === 'mahmut') curE.art = bossMahmut.art1;
+        } else {
+            // Rastgele Mob
+            let list = (zone === 'castle') ? mobsCastle : mobsVillage;
+            let base = list[Math.floor(Math.random()*list.length)];
+            curE = { ...base, curHp: base.hp, maxHp: base.hp };
+        }
+        
+        document.getElementById('battle-screen').style.display = 'flex';
+        document.getElementById('btl-btns').style.display = 'block';
+        document.getElementById('btl-name').innerText = curE.name;
+        document.getElementById('btl-sprite').innerText = curE.art;
+        document.getElementById('battle-log').innerText = curE.name + " SANA BAKIYOR!";
+        updateBattleUI();
+    }
+
+    function combat(act) {
+        if(!state.isTurn) return; 
+
+        if(act === 'run') {
+            if(curE.id === 'darius' || curE.id === 'mahmut') {
+                document.getElementById('battle-log').innerText = "BOSS SAVAŞINDAN KAÇAMAZSIN!";
+                return;
+            }
+            state.isBattle = false; document.getElementById('battle-screen').style.display = 'none';
+            return;
         }
 
-        function updateUI() {
-            const b = bosses[currentBossIdx];
-            document.getElementById('boss-hp').style.width = (bHP / b.hp) * 100 + "%";
-            document.getElementById('player-hp').style.width = (pHP / maxPHP) * 100 + "%";
+        state.isTurn = false; document.getElementById('btl-btns').style.display = 'none';
+
+        if(act === 'attack') {
+            // MAHMUT PHASE 3: DODGE MEKANİĞİ
+            if(curE.id === 'mahmut' && curE.phase === 3 && Math.random() < 0.25) {
+                document.getElementById('battle-log').innerText = "MAHMUT SALDIRIDAN KAÇTI! (MISS)";
+            } else {
+                let dmg = 25 + (state.lvl * 10) + (state.hasSis ? 50 : 0);
+                curE.curHp -= dmg;
+                document.getElementById('battle-log').innerText = "VURDUN: " + dmg;
+                
+                // MAHMUT PHASE KONTROL
+                if(curE.id === 'mahmut') checkMahmutPhase();
+
+                if(curE.curHp <= 0) return victory();
+            }
+        } 
+        else if(act === 'heal') {
+            state.hp = Math.min(state.maxHp, state.hp + 40);
+            if(state.qActive.ipek) { state.quests.ipek++; checkQuestCompletion('ipek'); }
+            document.getElementById('battle-log').innerText = "CANLANDIN (+40)";
         }
 
-    </script>
+        updateBattleUI(); setTimeout(enemyTurn, 1000);
+    }
+
+    function checkMahmutPhase() {
+        let pct = curE.curHp / curE.maxHp;
+        if(curE.phase === 1 && pct < 0.7) {
+            curE.phase = 2; curE.art = bossMahmut.art2; curE.atk += 50;
+            alert("MAHMUT'UN ZIRHI KIRILDI! (PHASE 2)");
+        }
+        if(curE.phase === 2 && pct < 0.3) {
+            curE.phase = 3; curE.art = bossMahmut.art3; curE.atk += 100;
+            alert("MAHMUT DELİRDİ! ARTIK ÇOK HIZLI! (PHASE 3)");
+        }
+        document.getElementById('btl-sprite').innerText = curE.art;
+    }
+
+    function enemyTurn() {
+        // Dodge Zone (Refleks Oyunu)
+        document.getElementById('dodge-zone').style.display = 'block';
+        window.dActive = true; window.dPos = 0; 
+        // Mahmut 3. evrede çok hızlı (speed 15)
+        let speedBase = (curE.id==='mahmut' && curE.phase===3) ? 15 : (6 + curE.lvl);
+        window.dDir = speedBase;
+        
+        function m() { 
+            if(!window.dActive) return; 
+            window.dPos += window.dDir; 
+            if(window.dPos>344 || window.dPos<0) window.dDir*=-1; 
+            document.getElementById('dodge-cursor').style.left=window.dPos+'px'; 
+            requestAnimationFrame(m); 
+        }
+        m();
+    }
+
+    function attemptDodge() {
+        window.dActive = false; document.getElementById('dodge-zone').style.display = 'none';
+        let nightMult = state.isNight ? 2 : 1;
+        
+        if(window.dPos >= 150 && window.dPos <= 200) {
+             document.getElementById('battle-log').innerText = "SIYRILDIN!";
+        } else {
+            let dmg = (curE.atk * nightMult) - state.defense;
+            if(dmg < 1) dmg = 1;
+            state.hp -= dmg;
+            document.getElementById('battle-log').innerText = "HASAR YEDİN: " + dmg;
+        }
+        
+        updateBattleUI();
+        if(state.hp <= 0) return respawn();
+        setTimeout(() => { state.isTurn = true; document.getElementById('btl-btns').style.display = 'block'; }, 1000);
+    }
+
+    function victory() {
+        let goldGain = curE.lvl * 20;
+        state.gold += goldGain; state.xp += curE.lvl * 50;
+        
+        if(state.qActive.zeynep && curE.name.includes("Yağız")) { state.quests.zeynep++; checkQuestCompletion('zeynep'); }
+        if(state.hasGlove && curE.id==='normal') { state.loot++; } // Sadece normal moblardan loot düşsün
+
+        // BOSS ÖDÜLLERİ
+        if(curE.id === 'darius') {
+            state.dariusDead = true;
+            state.hasInnerKey = true;
+            alert("DARIUS ÖLDÜ! 'Ejder Anahtarı' düştü. Şimdi kapıdan geçebilirsin.");
+        }
+        if(curE.id === 'mahmut') {
+            alert("TEBRİKLER! EJDER OTOBANI MAHMUT'U YENDİN!\nMAHALLE EFSANELERİ BİTTİ!\n\nSen gerçek bir Babaprosun!");
+        }
+
+        if(state.xp >= state.lvl * 500) { state.lvl++; state.xp=0; state.maxHp+=50; state.hp=state.maxHp; alert("LEVEL UP!"); }
+        
+        state.isBattle = false; document.getElementById('battle-screen').style.display = 'none';
+        updateUI();
+    }
+
+    function respawn() { 
+        state.hp = 50; state.wX = 1500; state.wY = 1600; 
+        state.isBattle = false; document.getElementById('battle-screen').style.display = 'none'; 
+        updateUI(); alert("BAYILDIN! Köye döndün.");
+    }
+
+    function updateQuestUI() {
+        let h = "";
+        if(state.qActive.zeynep) h += `<div>Zeynep: Fare (${state.quests.zeynep}/${state.qLvl.zeynep*3})</div>`;
+        if(state.qActive.miray) h += `<div>Miray: Meyve (${state.quests.miray}/${state.qLvl.miray*5})</div>`;
+        if(state.qActive.ipek) h += `<div>İpek: Yemek (${state.quests.ipek}/${state.qLvl.ipek*3})</div>`;
+        document.getElementById('q-list').innerHTML = h || "NPC'lere git!";
+    }
+
+    function updateUI() {
+        document.getElementById('st-hp').innerText = state.hp + "/" + state.maxHp;
+        document.getElementById('st-gold').innerText = state.gold;
+        document.getElementById('st-lvl').innerText = state.lvl;
+        document.getElementById('st-loot').innerText = state.loot;
+        document.getElementById('xp-fill').style.width = (state.xp / (state.lvl*500)) * 100 + "%";
+    }
+
+    function updateBattleUI() {
+        document.getElementById('btl-enemy-hp').style.width = Math.max(0, (curE.curHp / curE.maxHp) * 100) + "%";
+        document.getElementById('txt-enemy-hp').innerText = Math.max(0, curE.curHp) + " / " + curE.maxHp;
+        document.getElementById('btl-player-hp').style.width = Math.max(0, (state.hp / state.maxHp) * 100) + "%";
+        document.getElementById('txt-player-hp').innerText = Math.max(0, state.hp) + " / " + state.maxHp;
+    }
+
+    window.addEventListener('mousedown', e => { 
+        if(!state.isBattle && document.getElementById('shop-ui').style.display === 'none') { 
+            state.tX = state.wX + (e.clientX - window.innerWidth/2); 
+            state.tY = state.wY + (e.clientY - window.innerHeight/2); 
+        } 
+    });
+
+    init();
+</script>
 </body>
 </html>
